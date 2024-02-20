@@ -49,6 +49,17 @@ try:
     for modem_index in modems_indexes:
         output = subprocess.check_output(f"mmcli -m {modem_index}", shell=True).decode("utf-8")
         modems_info[modem_index] = output
+
+    # Extract the message for all the modems, putting them in a dictionary with the modem index as the key
+        # We use the functions we defined earlier
+    modems_messages = {}
+    for modem_index in modems_indexes:
+        message_indexes = extract_message_list(modem_index)
+        messages = {}
+        for message_index in message_indexes:
+            message_info = extract_message_info(modem_index, message_index)
+            messages[message_index] = message_info
+        modems_messages[modem_index] = messages
     
 
 except subprocess.CalledProcessError as e:

@@ -1,71 +1,88 @@
-from dotenv import load_dotenv
-import subprocess
+from fastapi import FastAPI, HTTPException
+from subprocess import check_output, CalledProcessError
 
-load_dotenv()
-
-# Using sudo su in a script, but only use if absolutely necessary
-command = "sudo su"
-subprocess.run(command, shell=True)
+app = FastAPI()
 
 def execute_mmcli_command(command):
     try:
-        output = subprocess.check_output(command, shell=True).decode("utf-8")
+        output = check_output(command, shell=True).decode("utf-8")
         return output
-    except subprocess.CalledProcessError as e:
+    except CalledProcessError as e:
         print(f"Error executing command: {e}")
-        return None
+        raise HTTPException(status_code=500, detail="Error executing command")
     except Exception as e:
         print(f"An error occurred: {e}")
-        return None
+        raise HTTPException(status_code=500, detail="An error occurred")
 
-def extract_message_list(modem_index):
-    command = f"mmcli -m {modem_index} --messaging-list-sms"
-    output = execute_mmcli_command(command)
-    if output:
-        return output.split("\n")[1:]
-    return None
+@app.get("/messages")
+async def get_messages():
+    try:
+        output = execute_mmcli_command("mmcli -L")
+        modems = output.splitlines()[1:]  # Exclude the first line
+        modems_indexes = [line.split(" ")[0].split("/")[-1] for line in modems]
 
-def extract_message_info(modem_index, message_index):
-    command = f"mmcli -m {modem_index} --sms {message_index}"
-    return execute_mmcli_command(command)
+        modems_messages = {}
+        for modem_index in modems_indexes:
+            command = f"mmcli -m {modem_index} --messaging-list-sms"
+            message_list = execute_mmcli_command(command)
+            messages = {}
+            for line in message_list.split("\n")[1:]:
+                message_index = line.split(" ")[0]
+                message_info = execute_mmcli_command(f"mmcli -m {modem_index} --sms {message_index}")
+                messages[message_index] = message_info
+            modems_messages[modem_index] = messages
 
-try:
-    # Use subprocess.check_output for running commands and handle exceptions
-    output = subprocess.check_output("mmcli -L", shell=True).decode("utf-8")
-    # We want to extract the modem paths from the output and store them in a list
-    modems = output.splitlines()[1:]  # Exclude the first line
+        return modems_messages
+    except HTTPException:
+        raise  # Re-raise HTTPException to return proper HTTP error response
 
-    # The modems list should look like this:
-    # ['/org/freedesktop/ModemManager1/Modem/0,
-    # '/org/freedesktop/ModemManager1/Modem/1,
-    # '/org/freedesktop/ModemManager1/Modem/2]
-    modems_paths = [line.split(" ")[0] for line in modems]
+# get_message receives an id of a modem and returns the messages of that modem
+@app.get("/messages/{modem_id}")
+async def get_message(modem_id: int):
+    try:
+        output = execute_mmcli_command("mmcli -L")
+        modems = output.splitlines()[1:]  # Exclude the first line
+        modem_index = None
+        for modem in modems:
+            if f"Modem{modem_id}" in modem:
+                modem_index = modem.split(" ")[0].split("/")[-1]
+                break
 
-    # Extract the modem indexes from the paths and store them in a list
-    modems_indexes = [modem.split("/")[-1] for modem in modems_paths]
+        if modem_index is None:
+            raise HTTPException(status_code=404, detail="Modem not found")
 
-    # Extract the modem information for each modem and store it in a dictionary with the modem index as the key
-    modems_info = {}
-    for modem_index in modems_indexes:
-        output = subprocess.check_output(f"mmcli -m {modem_index}", shell=True).decode("utf-8")
-        modems_info[modem_index] = output
+        command = f"mmcli -m {modem_index} --messaging-list-sms"
+        message_list = execute_mmcli_command(command)
 
-    # Extract the message for all the modems, putting them in a dictionary with the modem index as the key
-        # We use the functions we defined earlier
-    modems_messages = {}
-    for modem_index in modems_indexes:
-        message_indexes = extract_message_list(modem_index)
         messages = {}
-        for message_index in message_indexes:
-            message_info = extract_message_info(modem_index, message_index)
+        for line in message_list.split("\n")[1:]:
+            message_index = line.split(" ")[0]
+            message_info = execute_mmcli_command(f"mmcli -m {modem_index} --sms {message_index}")
             messages[message_index] = message_info
-        modems_messages[modem_index] = messages
+
+        return messages
+    except HTTPException:
+        raise  # Re-raise HTTPException to return proper HTTP error response
+
+# delete_message receives an id of a modem and a message and deletes that message
+@app.delete("/messages/{modem_id}/{message_id}")
+async def delete_message(modem_id: int, message_id: int):
+    try:
+        output = execute_mmcli_command("mmcli -L")
+        modems = output.splitlines()[1:]  # Exclude the first line
+        modem_index = None
+        for modem in modems:
+            if f"Modem{modem_id}" in modem:
+                modem_index = modem.split(" ")[0].split("/")[-1]
+                break
+
+        if modem_index is None:
+            raise HTTPException(status_code=404, detail="Modem not found")
+
+        command = f"mmcli -m {modem_index} --delete-sms={message_id}"
+        execute_mmcli_command(command)
+
+        return {"message": "Message deleted"}
+    except HTTPException:
+        raise  # Re-raise HTTPException to return proper HTTP error response
     
-
-except subprocess.CalledProcessError as e:
-    # Handle subprocess errors gracefully
-    print(f"Error executing command: {e}")
-
-except Exception as e:
-    # Handle other exceptions gracefully
-    print(f"An error occurred: {e}")

@@ -1,71 +1,54 @@
-from dotenv import load_dotenv
-import subprocess
+#!/usr/bin/python3
+# -*- Mode: python; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details:
+#
+# Copyright (C) 2008 Novell, Inc.
+# Copyright (C) 2009 - 2010 Red Hat, Inc.
+#
 
-load_dotenv()
+import sys
+from pydbus import SystemBus
 
-# Using sudo su in a script, but only use if absolutely necessary
-command = "sudo su"
-subprocess.run(command, shell=True)
+DBUS_INTERFACE_PROPERTIES='org.freedesktop.DBus.Properties'
+MM_DBUS_SERVICE='org.freedesktop.ModemManager'
+MM_DBUS_PATH='/org/freedesktop/ModemManager'
+MM_DBUS_INTERFACE='org.freedesktop.ModemManager'
+MM_DBUS_INTERFACE_MODEM='org.freedesktop.ModemManager.Modem'
 
-def execute_mmcli_command(command):
-    try:
-        output = subprocess.check_output(command, shell=True).decode("utf-8")
-        return output
-    except subprocess.CalledProcessError as e:
-        print(f"Error executing command: {e}")
-        return None
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return None
+bus = SystemBus()
 
-def extract_message_list(modem_index):
-    command = f"mmcli -m {modem_index} --messaging-list-sms"
-    output = execute_mmcli_command(command)
-    if output:
-        return output.split("\n")[1:]
-    return None
+# Get available modems:
+manager_proxy = bus.get(MM_DBUS_SERVICE, MM_DBUS_PATH)
+manager_iface = manager_proxy[MM_DBUS_INTERFACE]
+modems = manager_iface.EnumerateDevices()
 
-def extract_message_info(modem_index, message_index):
-    command = f"mmcli -m {modem_index} --sms {message_index}"
-    return execute_mmcli_command(command)
+if not modems:
+    print("No modems found")
+    sys.exit(1)
 
-try:
-    # Use subprocess.check_output for running commands and handle exceptions
-    output = subprocess.check_output("mmcli -L", shell=True).decode("utf-8")
-    # We want to extract the modem paths from the output and store them in a list
-    modems = output.splitlines()[1:]  # Exclude the first line
+for m in modems:
+    proxy = bus.get(MM_DBUS_SERVICE, m)
 
-    # The modems list should look like this:
-    # ['/org/freedesktop/ModemManager1/Modem/0,
-    # '/org/freedesktop/ModemManager1/Modem/1,
-    # '/org/freedesktop/ModemManager1/Modem/2]
-    modems_paths = [line.split(" ")[0] for line in modems]
+    # Properties
+    props_iface = proxy[DBUS_INTERFACE_PROPERTIES]
 
-    # Extract the modem indexes from the paths and store them in a list
-    modems_indexes = [modem.split("/")[-1] for modem in modems_paths]
+    driver = props_iface.Get(MM_DBUS_INTERFACE_MODEM, 'Driver')
+    mtype = props_iface.Get(MM_DBUS_INTERFACE_MODEM, 'Type')
+    device = props_iface.Get(MM_DBUS_INTERFACE_MODEM, 'MasterDevice')
 
-    # Extract the modem information for each modem and store it in a dictionary with the modem index as the key
-    modems_info = {}
-    for modem_index in modems_indexes:
-        output = subprocess.check_output(f"mmcli -m {modem_index}", shell=True).decode("utf-8")
-        modems_info[modem_index] = output
+    strtype = ""
+    if mtype == 1:
+        strtype = "GSM"
+    elif mtype == 2:
+        strtype = "CDMA"
 
-    # Extract the message for all the modems, putting them in a dictionary with the modem index as the key
-        # We use the functions we defined earlier
-    modems_messages = {}
-    for modem_index in modems_indexes:
-        message_indexes = extract_message_list(modem_index)
-        messages = {}
-        for message_index in message_indexes:
-            message_info = extract_message_info(modem_index, message_index)
-            messages[message_index] = message_info
-        modems_messages[modem_index] = messages
-    
-
-except subprocess.CalledProcessError as e:
-    # Handle subprocess errors gracefully
-    print(f"Error executing command: {e}")
-
-except Exception as e:
-    # Handle other exceptions gracefully
-    print(f"An error occurred: {e}")
+    print("%s (%s [%s], device %s)" % (m, strtype, driver, device))

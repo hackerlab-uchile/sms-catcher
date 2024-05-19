@@ -161,4 +161,8 @@ cython_debug/
 
 modem_info.json
 dashboard_info.json
-sms_catcher.sqlite3
+
+# Ignore SQLite database files
+*.sqlite
+*.sqlite3
+*.db

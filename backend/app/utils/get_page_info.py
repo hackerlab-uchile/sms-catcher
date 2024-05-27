@@ -1,6 +1,10 @@
 import re
-from selenium import webdriver
-from selenium.common.exceptions import WebDriverException
+import socket
+import ssl
+from playwright.async_api import async_playwright, TimeoutError
+import asyncio
+import base64
+import os
 
 # Extracts the URL from the given text by finding the first occurrence of 'http' or 'https'
 # and returning the URL starting from that point until the next whitespace character
@@ -10,66 +14,41 @@ def extract_url(text):
         return url.group(0)
     return None
 
-def get_webpage_title(url):
-    try:
-
-        mobile_emulation = {
-            "deviceMetrics": { "width": 360, "height": 640, "pixelRatio": 3.0 },
-            "userAgent": "Mozilla/5.0 (Linux; Android 4.2.1; en-us; Nexus 5 Build/JOP40D) AppleWebKit/535.19 (KHTML, like Gecko) Chrome/18.0.1025.166 Mobile Safari/535.19" 
-            }
-
-        # Set up the options for the Chrome browser
-        chrome_options = webdriver.ChromeOptions()
-        # chrome_options.add_argument('--headless')  # Run in headless mode, i.e., without a GUI
-        # chrome_options.add_argument('--no-sandbox')  # Bypass OS security model
-        # chrome_options.add_argument('--disable-dev-shm-usage')  # Overcome limited resource problems
-        chrome_options.add_experimental_option("mobileEmulation", mobile_emulation)
-        # To handle the website like a mobile device
-        # chrome_options.add_argument('--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 10_3 like Mac OS X) AppleWebKit/602.1.50 (KHTML, like Gecko) CriOS/56.0.2924.75 Mobile/14E5239e Safari/602.1')
+async def capture_page_info(url, screenshot_path='screenshot.png', device_name='Galaxy S5', wait_state='networkidle', headless=True, retry_count=3):
+    if url is None:
+        return None, None, None
+    async with async_playwright() as playwright:
+        device = playwright.devices[device_name]
+        browser = await playwright.chromium.launch(headless=headless)
+        context = await browser.new_context(**device)
         
-        # Create a new instance of the Chrome driver
-        driver = webdriver.Chrome(options=chrome_options)
+        urls = []
         
-        # Visit the website
-        driver.get(url)
+        def handle_response(response):
+            if response.url not in urls:
+                urls.append(response.url)
         
-        # Get the title of the webpage
-        title = driver.title
+        page = await context.new_page()
+        page.on('response', handle_response)
         
-        # Close the browser
-        driver.quit()
+        for attempt in range(retry_count):
+            try:
+                await page.goto(url)
+                await page.wait_for_load_state(wait_state)
+                break  # If successful, exit the loop
+            except (TimeoutError, Exception) as e:
+                print(f"Attempt {attempt + 1} failed: {e}")
+                if attempt == retry_count - 1:
+                    raise  # Raise the last exception if all retries fail
         
-        return title
-    except WebDriverException as e:
-        # Handle exceptions related to the WebDriver
-        print("Error with WebDriver:", e)
-        return None
-    except Exception as e:
-        # Handle any other exceptions that occur during the process
-        print("Error:", e)
-        return None
-
-def generate_screenshot(url, screenshot_name):
-    # Set up the options for the Chrome browser
-    chrome_options = webdriver.ChromeOptions()
-    chrome_options.add_argument('--headless')  # Run in headless mode, i.e., without a GUI
-    chrome_options.add_argument('--no-sandbox')  # Bypass OS security model
-    chrome_options.add_argument('--disable-dev-shm-usage')  # Overcome limited resource problems
-    
-    # Create a new instance of the Chrome driver
-    driver = webdriver.Chrome(options=chrome_options)
-    
-    # Visit the website
-    driver.get(url)
-    
-    # Take a screenshot of the page
-    driver.save_screenshot(screenshot_name)
-    
-    # Close the browser
-    driver.quit()
-
-import socket
-import ssl
+        title = await page.title()
+        await page.screenshot(path=screenshot_path)
+        await browser.close()
+        screenshot = base64.b64encode(open(screenshot_path, "rb").read()).decode("utf-8")
+        # now we delete the screenshot file
+        os.remove(screenshot_path)
+        
+        return title, urls, screenshot 
 
 def get_dns(url):
     try:
@@ -104,9 +83,4 @@ def get_dns_and_certificate(url):
         return None
     dns = get_dns(url)
     cert_info = get_url_certificate(url)
-    info = {
-        "url": url,
-        "dns": dns,
-        "certificate": cert_info
-    }
-    return info
+    return dns, cert_info

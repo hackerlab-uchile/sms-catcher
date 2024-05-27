@@ -6,7 +6,7 @@ import json
 import requests
 import os
 from app.utils.database_querys import get_messages_with_timestamp_after
-from app.utils.get_page_info import get_webpage_title, generate_screenshot, extract_url, get_dns_and_certificate
+from app.utils.get_page_info import extract_url, get_dns_and_certificate, capture_page_info
 from datetime import timedelta
 
 router = APIRouter()
@@ -17,32 +17,7 @@ modem_path = os.path.join(os.path.dirname(__file__), "..", "resources", "modem_i
 # Post a message from a specific modem to
 # an external API
 @router.post("/send_message")
-async def post_modem_info():
-    messages_to_save = 10
-    # first, we open the last_messages_sent.txt file to check the last messages sent
-    with open(messages_sent_path, "r") as f:
-        last_messages_sent = f.read().splitlines()
-    # Now we get the modem_info.json file
-    with open(modem_path, "r") as f:
-        modem_info = json.load(f)
-    # Now we send every message wich key is not in last_messages_sent
-    for message_key, message in modem_info.items():
-        if message_key not in last_messages_sent:
-            response = requests.post("http://127.0.0.1:8002/", json=message)
-            if response.status_code == 200:
-                last_messages_sent.append(message_key)
-    # Now we update the last_messages_sent.txt file
-    # Sidenote: we are supposed to only have the last X messages sent
-    # for efficiency
-    with open(messages_sent_path, "w") as f:
-        for message_key in last_messages_sent[-messages_to_save:]:
-            f.write(message_key + "\n")
-    return "Messages sent"
-
-# Post a message from a specific modem to
-# an external API
-@router.post("/send_message2")
-async def post_modem_info2(x_minutes=17820):
+async def post_modem_info(x_minutes=17820):
     # We get the messages of the last x_minutes minutes
     time_to_query = datetime.now() - timedelta(minutes=int(x_minutes))
     messages = get_messages_with_timestamp_after(time_to_query.astimezone(dateutil.tz.gettz('Chile/Continental')))
@@ -60,18 +35,19 @@ async def post_modem_info2(x_minutes=17820):
         # now we extract the URL from the message text
         url = extract_url(message_text)
         print(f'URL: {url}')
-        # now we get the webpage title
-        #webpage_title = get_webpage_title(url)
-
         # # now we generate the screenshot in a temporary file located in ../temp/{screenshoot_name}.jpg
-        # screenshot_name = f"../temp/{message.id}.jpg"
-        # generate_screenshot(url, screenshot_name)
-        # with open(screenshot_name, "rb") as f:
-        #     screenshot = base64.b64encode(f.read()).decode("utf-8")
-        # os.remove(screenshot_name)
+        screenshot_name = f"{message.id.split(' ')[-1]}.jpg"
+        title, urls, screenshot = await capture_page_info(url, screenshot_name)
 
         # now we get the DNS and certificate information
-        page_dns = get_dns_and_certificate(url)
+        page_dns = {}
+        if urls is not None:
+            for url in urls:
+                dns_info, cert_info = get_dns_and_certificate(url)
+                page_dns[url] = {
+                    "dns": dns_info,
+                    "certificate": cert_info
+                }
         # now we fill up the message json
         messages_json[message.id] = {
             "number": message.number,
@@ -79,11 +55,12 @@ async def post_modem_info2(x_minutes=17820):
             "pdu_type": message.pdu_type,
             "timestamp": message.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f'),
             "url": url,
-            #"webpage_title": webpage_title,
-            # "screenshot": screenshot,
-            "page_info": page_dns
-
+            "title": title,
+            "screenshot": screenshot,
+            "page_info_with_redirects": page_dns
         }
+    # now we make it to json format
+    messages_json = json.dumps(messages_json, indent = 4)
     # now we send the messages to the external API
     response = requests.post("http://127.0.0.1:8002/", json=messages_json)
     if response.status_code == 200:

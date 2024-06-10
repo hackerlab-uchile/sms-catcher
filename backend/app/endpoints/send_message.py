@@ -1,4 +1,3 @@
-import base64
 from datetime import datetime
 import dateutil
 from fastapi import APIRouter
@@ -8,18 +7,20 @@ import os
 from app.utils.database_querys import get_messages_with_timestamp_after
 from app.utils.get_page_info import extract_url, get_dns_and_certificate, capture_page_info
 from datetime import timedelta
+from dotenv import load_dotenv
 
 router = APIRouter()
 
-messages_sent_path = os.path.join(os.path.dirname(__file__), "..", "resources", "last_messages_sent.txt")
-modem_path = os.path.join(os.path.dirname(__file__), "..", "resources", "modem_info.json")
+load_dotenv()
+
+POST_API_URL = os.getenv("POST_API_URL")
 
 # Post a message from a specific modem to
 # an external API
 @router.post("/send_message")
-async def post_modem_info(x_minutes=17820):
-    # We get the messages of the last x_minutes minutes
-    time_to_query = datetime.now() - timedelta(minutes=int(x_minutes))
+async def post_modem_info(x_seconds=60):
+    # We get the messages of the last x_seconds seconds
+    time_to_query = datetime.now() - timedelta(seconds=int(x_seconds))
     messages = get_messages_with_timestamp_after(time_to_query.astimezone(dateutil.tz.gettz('Chile/Continental')))
     # now we only keep the smishing messages
     messages = [message for message in messages if message.type == "smish"]
@@ -62,7 +63,8 @@ async def post_modem_info(x_minutes=17820):
     # now we make it to json format
     messages_json = json.dumps(messages_json, indent = 4)
     # now we send the messages to the external API
-    response = requests.post("http://127.0.0.1:8002/", json=messages_json)
+    response = requests.post(POST_API_URL, json=messages_json)
+    # response = requests.post(POST_API_URL, json=json.dumps({"message": "Data received successfully"}) )
     if response.status_code == 200:
         return "Messages sent"
     else:

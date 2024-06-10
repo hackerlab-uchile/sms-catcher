@@ -17,16 +17,12 @@ Base.metadata.create_all(bind=engine)
 
 modem_path = os.path.join(os.path.dirname(__file__), "..", "resources", "modem_info.json")
 
-# When the API receives a POST request to this endpoint
-# it will run the script in sms-catcher/backend/message_obtaining.py
-# to get the message list and information for each modem
 @router.post("/update_modem_info")
 async def update_modem_info():
     try:
         output = subprocess.check_output("mmcli -L", shell=True).decode("utf-8")
-        modems = output.splitlines()#[1:]  # Exclude the first line
-        # Now, for each line, get the first not spacebar string
-
+        modems = output.splitlines()
+        
         modems_paths = [extract_first_non_space_substring(line) for line in modems]
         modems_indexes = [modem.split("/")[-1] for modem in modems_paths]
 
@@ -36,17 +32,14 @@ async def update_modem_info():
             if messages:
                 for message_index in messages:
                     message_info = extract_message_info(modem_index, message_index)
-                    message = parse_message_info(message_info)
-                    message_hash = hash(message["number"] + message["text"])
-                    message_identifier = str(message["timestamp"]) + " " + str(message_hash)
                     if message_info:
-                        modems_info[message_identifier] = parse_message_info(message_info)
-                    sorted_messages = dict(sorted(modems_info.items(), key=lambda item: item[1]["timestamp"], reverse=True))
+                        message = parse_message_info(message_info)
+                        message_timestamp = parse_timezone(message["timestamp"])
+                        message_identifier = f"{message['number']}_{message['text']}_{message_timestamp}"
+                        modems_info[message_identifier] = message
+        
+        sorted_messages = dict(sorted(modems_info.items(), key=lambda item: item[1]["timestamp"], reverse=True))
 
-        # with open(modem_path, "w") as f:
-        #     json.dump(sorted_messages, f, indent=4)
-
-        # Now we want to save the messages in the database if the id is not already in the database
         session = Session()
         for message_key, message in sorted_messages.items():
             if not session.query(Message).filter_by(id=message_key).first():
@@ -56,11 +49,11 @@ async def update_modem_info():
                     path=message["path"],
                     number=message["number"],
                     text=message["text"],
-                    pdu_type=message['pdu type'],
+                    pdu_type=message.get("pdu_type", None),
                     state=message["state"],
                     storage=message["storage"],
                     smsc=message["smsc"],
-                    timestamp=parse_timezone(message["timestamp"])
+                    timestamp=message_timestamp  # Use the normalized timestamp here
                 )
                 session.add(message_to_save)
         session.commit()

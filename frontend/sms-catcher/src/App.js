@@ -45,9 +45,9 @@ const App = () => {
   return (
     <div>
       <nav className="navbar">
-        <h1 className="navbar-brand">Modem Info</h1>
-        <button className="button" onClick={handleUpdateModemInfo}>Update Modem Info</button>
-        <button className="button" onClick={handleModemLastMessage}>Last Message for each Modems</button>
+        <h1 className="navbar-brand">SMS CATCHER</h1>
+        {/* <button className="button" onClick={handleUpdateModemInfo}>Update Modem Info</button>
+        <button className="button" onClick={handleModemLastMessage}>Last Message for each Modems</button> */}
       </nav>      
       <header className="App-header">
         <Dashboard />

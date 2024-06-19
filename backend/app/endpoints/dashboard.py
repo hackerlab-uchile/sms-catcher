@@ -4,6 +4,7 @@ import subprocess
 from fastapi import APIRouter
 import json
 from app.utils.database_querys import get_all_messages, get_messages_by
+from app.utils.normalize_time import parse_timezone
 
 router = APIRouter()
 
@@ -18,12 +19,17 @@ async def get_dashboard_info():
     all_messages = get_all_messages()
     total_messages = len(all_messages)
 
+    # Parse and normalize timestamps for all messages
+    for message in all_messages:
+        message.timestamp = parse_timezone(message.timestamp.strftime('%Y-%m-%d %H:%M:%S'))
+
     # Get the number of messages per day during the last week
     last_week_messages = {}
     for i in range(7):
-        last_week_messages[(datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')] = len([m for m in all_messages if m.timestamp.startswith((datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d'))])
+        day_str = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+        last_week_messages[day_str] = len([m for m in all_messages if m.timestamp.strftime('%Y-%m-%d').startswith(day_str)])
     
-    # Now we reverse the order of the dictionary
+    # Reverse the order of the dictionary
     last_week_messages = dict(reversed(last_week_messages.items()))
 
     # Get the number of messages per month during the last year
@@ -31,11 +37,10 @@ async def get_dashboard_info():
     current_month = datetime.now().replace(day=1)  # Start from the first day of the current month
 
     for i in range(12):
-        # Calculate the month for the current iteration
         month_str = current_month.strftime('%Y-%m')
         
         # Filter messages for the current month and count them
-        messages_count = len([m for m in all_messages if m.timestamp.startswith(month_str)])
+        messages_count = len([m for m in all_messages if m.timestamp.strftime('%Y-%m').startswith(month_str)])
         
         # Store the count in the dictionary with the month as key
         last_months_messages[month_str] = messages_count
@@ -43,15 +48,16 @@ async def get_dashboard_info():
         # Move to the previous month
         current_month -= timedelta(days=current_month.day)
 
-    # now we reverse the order of the dictionary
+    # Reverse the order of the dictionary
     last_months_messages = dict(reversed(last_months_messages.items()))
 
     # Get the number of messages per year during the last 5 years
     last_years_messages = {}
     for i in range(5):
-        last_years_messages[str(datetime.now().year - i)] = len([m for m in all_messages if m.timestamp.startswith(str(datetime.now().year - i))])
+        year_str = str(datetime.now().year - i)
+        last_years_messages[year_str] = len([m for m in all_messages if m.timestamp.strftime('%Y').startswith(year_str)])
 
-    # now we reverse the order of the dictionary
+    # Reverse the order of the dictionary
     last_years_messages = dict(reversed(last_years_messages.items()))
 
     # Get the number of messages per phone number
@@ -60,44 +66,49 @@ async def get_dashboard_info():
     for phone_number in phone_numbers:
         messages_per_phone_number[phone_number] = len([m for m in all_messages if m.number == phone_number])
 
-    # Now, we get the total number of smishings using get_messages_by(type, smish)
+    # Get the total number of smishings
     smishings = get_messages_by('type', 'smish')
     total_smishings = len(smishings)
 
-    # Now, we get the total number of legit messages using get_messages_by(type, legit)
+    # Get the total number of legitimate messages
     legit_messages = get_messages_by('type', 'legit')
     total_legit = len(legit_messages)
 
-    # Now we do the same as all the other dictionaries, but only for messages with smishing type
-    # We get the smishing messages using get_messages_by(type, smish)
+    # Parse and normalize timestamps for smishing messages
+    for smish in smishings:
+        smish.timestamp = parse_timezone(smish.timestamp.strftime('%Y-%m-%d %H:%M:%S'))
+
+    # Get the number of smishings per day during the last week
     last_week_smishings = {}
     for i in range(7):
-        last_week_smishings[(datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')] = len([m for m in smishings if m.timestamp.startswith((datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d'))])
+        day_str = (datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d')
+        last_week_smishings[day_str] = len([m for m in smishings if m.timestamp.strftime('%Y-%m-%d').startswith(day_str)])
 
-    # Now we reverse the order of the dictionary
+    # Reverse the order of the dictionary
     last_week_smishings = dict(reversed(last_week_smishings.items()))
 
-    # Get the number of messages per month during the last year
+    # Get the number of smishings per month during the last year
     last_months_smishings = {}
     current_month = datetime.now().replace(day=1)
     for i in range(12):
         month_str = current_month.strftime('%Y-%m')
-        messages_count = len([m for m in smishings if m.timestamp.startswith(month_str)])
+        messages_count = len([m for m in smishings if m.timestamp.strftime('%Y-%m').startswith(month_str)])
         last_months_smishings[month_str] = messages_count
         current_month -= timedelta(days=current_month.day)
 
-    # now we reverse the order of the dictionary
+    # Reverse the order of the dictionary
     last_months_smishings = dict(reversed(last_months_smishings.items()))
 
-    # Get the number of messages per year during the last 5 years
+    # Get the number of smishings per year during the last 5 years
     last_years_smishings = {}
     for i in range(5):
-        last_years_smishings[str(datetime.now().year - i)] = len([m for m in smishings if m.timestamp.startswith(str(datetime.now().year - i))])
+        year_str = str(datetime.now().year - i)
+        last_years_smishings[year_str] = len([m for m in smishings if m.timestamp.strftime('%Y').startswith(year_str)])
 
-    # now we reverse the order of the dictionary
+    # Reverse the order of the dictionary
     last_years_smishings = dict(reversed(last_years_smishings.items()))
-    
-    # Lastly, we count the number of messages per phone number for smishing messages and get the top 10
+
+    # Count the number of smishings per phone number and get the top 10
     smishings_per_phone_number = {}
     for phone_number in phone_numbers:
         smishings_per_phone_number[phone_number] = len([m for m in smishings if m.number == phone_number])

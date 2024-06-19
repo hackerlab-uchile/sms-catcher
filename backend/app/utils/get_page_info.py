@@ -50,7 +50,7 @@ async def capture_page_info(url, screenshot_path='screenshot.png', device_name='
         
         return title, urls, screenshot 
 
-def get_dns(url):
+def get_ip(url):
     try:
         # Extract the hostname from the URL
         hostname = url.split("//")[-1].split("/")[0].split(":")[0]
@@ -78,9 +78,9 @@ def get_url_certificate(url):
         print("Error getting certificate information:", e)
         return None
     
-def get_dns_and_certificate(url):
+def get_ip_and_certificate(url):
     if url is None:
         return None
-    dns = get_dns(url)
+    dns = get_ip(url)
     cert_info = get_url_certificate(url)
     return dns, cert_info

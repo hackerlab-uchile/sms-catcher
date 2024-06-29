@@ -15,15 +15,12 @@ router = APIRouter()
 load_dotenv()
 
 POST_API_URL = os.getenv("POST_API_URL")
-<<<<<<< HEAD
-=======
 API_TOKEN = os.getenv("API_TOKEN")
 
 headers = {
     "Authorization": f"Bearer {API_TOKEN}",
     "Content-Type": "application/json"
 }
->>>>>>> 5323ab3 (Final Version)
 
 @router.post("/send_message")
 async def post_modem_info():
@@ -70,11 +67,7 @@ async def post_modem_info():
     
     messages_json = json.dumps(messages_json, indent=4)
     
-<<<<<<< HEAD
-    response = requests.post(POST_API_URL, json=messages_json)
-=======
     response = requests.post(POST_API_URL, headers=headers, json=messages_json)
->>>>>>> 5323ab3 (Final Version)
     
     if response.status_code == 200:
         # Update the last sent timestamp to the latest message timestamp

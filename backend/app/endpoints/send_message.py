@@ -64,6 +64,9 @@ async def post_modem_info():
             "ip_info": ip_info,
             "cert_info": cert_info
         }
+
+    if messages_json == {}:
+        return
     
     messages_json = json.dumps(messages_json, indent=4)
     

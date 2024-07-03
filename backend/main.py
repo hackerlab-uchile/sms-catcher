@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.endpoints import modem, dashboard, update, last_message, send_message
+from app.endpoints import modem, dashboard, update, send_message
 
 app = FastAPI()
 
@@ -22,5 +22,4 @@ async def root():
 app.include_router(modem.router)
 app.include_router(dashboard.router)
 app.include_router(update.router)
-app.include_router(last_message.router)
 app.include_router(send_message.router)

@@ -20,34 +20,22 @@ const App = () => {
     fetchModemInfo();
   }, []);
 
-  const handleUpdateModemInfo = async () => {
-    try {
-      await fetchData('http://127.0.0.1:8000/update_modem_info', 'POST');
-      // After successfully sending the POST request, fetch the updated modem info
-      const modemInfoData = await fetchData('http://127.0.0.1:8000/modem_info');
-      setModemInfo(modemInfoData);
-    } catch (error) {
-      console.error('Error updating modem info:', error);
-    }
-  };
-
-  const handleModemLastMessage = async () => {
-    try {
-      await fetchData('http://127.0.0.1:8000/last_message', 'POST');
-      // You can add any additional logic here after the POST request
-      const modemInfoData = await fetchData('http://127.0.0.1:8000/modem_info');
-      setModemInfo(modemInfoData);
-    } catch (error) {
-      console.error('Error sending example POST request:', error);
-    }
-  };
+  // const handleUpdateModemInfo = async () => {
+  //   try {
+  //     await fetchData('http://127.0.0.1:8000/update_modem_info', 'POST');
+  //     // After successfully sending the POST request, fetch the updated modem info
+  //     const modemInfoData = await fetchData('http://127.0.0.1:8000/modem_info');
+  //     setModemInfo(modemInfoData);
+  //   } catch (error) {
+  //     console.error('Error updating modem info:', error);
+  //   }
+  // };
 
   return (
     <div>
       <nav className="navbar">
         <h1 className="navbar-brand">SMS CATCHER</h1>
-        {/* <button className="button" onClick={handleUpdateModemInfo}>Update Modem Info</button>
-        <button className="button" onClick={handleModemLastMessage}>Last Message for each Modems</button> */}
+        {/* <button className="button" onClick={handleUpdateModemInfo}>Update Modem Info</button>*/}
       </nav>      
       <header className="App-header">
         <Dashboard />

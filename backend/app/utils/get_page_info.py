@@ -14,13 +14,22 @@ def extract_url(text):
         return url.group(0)
     return None
 
-async def capture_page_info(url, screenshot_path='screenshot.png', device_name='Galaxy S5', wait_state='networkidle', headless=True, retry_count=3):
+async def capture_page_info(url, screenshot_path='screenshot.png', device_name='Galaxy S5', wait_state='networkidle', headless=True, retry_count=2):
     if url is None:
         return None, None, None
+    
     async with async_playwright() as playwright:
-        device = playwright.devices[device_name]
-        browser = await playwright.chromium.launch(headless=headless)
-        context = await browser.new_context(**device)
+        device = playwright.devices.get(device_name)
+        if device is None:
+            print(f"Device '{device_name}' not found.")
+            return None, None, None
+
+        try:
+            browser = await playwright.chromium.launch(headless=headless)
+            context = await browser.new_context(**device)
+        except Exception as e:
+            print(f"Error launching browser or creating context: {e}")
+            return None, None, None
         
         urls = []
         
@@ -31,24 +40,26 @@ async def capture_page_info(url, screenshot_path='screenshot.png', device_name='
         page = await context.new_page()
         page.on('response', handle_response)
         
+        title = None
+        screenshot = None
+        
         for attempt in range(retry_count):
             try:
                 await page.goto(url)
                 await page.wait_for_load_state(wait_state)
+                title = await page.title()
+                await page.screenshot(path=screenshot_path)
+                screenshot = base64.b64encode(open(screenshot_path, "rb").read()).decode("utf-8")
+                os.remove(screenshot_path)
                 break  # If successful, exit the loop
             except (TimeoutError, Exception) as e:
                 print(f"Attempt {attempt + 1} failed: {e}")
                 if attempt == retry_count - 1:
-                    raise  # Raise the last exception if all retries fail
+                    print(f"All {retry_count} attempts failed.")
+                    break
         
-        title = await page.title()
-        await page.screenshot(path=screenshot_path)
         await browser.close()
-        screenshot = base64.b64encode(open(screenshot_path, "rb").read()).decode("utf-8")
-        # now we delete the screenshot file
-        os.remove(screenshot_path)
-        
-        return title, urls, screenshot 
+        return title, urls if urls else None, screenshot
 
 def get_ip(url):
     try:
@@ -84,3 +95,15 @@ def get_ip_and_certificate(url):
     dns = get_ip(url)
     cert_info = get_url_certificate(url)
     return dns, cert_info
+
+# Example usage
+async def main():
+    url = extract_url("Check out this website: https://www.example.com")
+    title, urls, screenshot = await capture_page_info(url)
+    print(f"Title: {title}, URLs: {urls}, Screenshot: {screenshot}")
+
+    dns, cert_info = get_ip_and_certificate(url)
+    print(f"DNS: {dns}, Certificate: {cert_info}")
+
+# Uncomment the following line to run the example
+# asyncio.run(main())

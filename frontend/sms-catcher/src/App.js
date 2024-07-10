@@ -43,10 +43,11 @@ const App = () => {
       <ul>
         {Object.entries(modemInfo).map(([modemIndex, modemData]) => (
           <li key={modemIndex} className="modem-index">
-            <h2> MESSAGE_HASH {modemIndex}</h2>
+            <h3> MESSAGE_HASH {modemIndex}</h3>
             <ul>
               <p>Number: {modemData.number}</p>
               <p>Text: {modemData.text}</p>
+              <p>URL: {modemData.url}</p>
             </ul>
           </li>
         ))}

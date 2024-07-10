@@ -8,6 +8,7 @@ from app.config.database import Session, engine, Base
 from app.models.messages import Message
 from app.classifier_smish.classify_text import classify_text
 from app.utils.normalize_time import parse_timezone
+import hashlib
 
 router = APIRouter()
 
@@ -35,7 +36,8 @@ async def update_modem_info():
                     if message_info:
                         message = parse_message_info(message_info)
                         message_timestamp = parse_timezone(message["timestamp"])
-                        message_identifier = f"{message['number']}_{message['text']}_{message_timestamp}"
+                        hashed_message = hash(f"{message['number']}_{message['text']}")
+                        message_identifier = f"{message_timestamp}_{hashed_message}"
                         modems_info[message_identifier] = message
         
         sorted_messages = dict(sorted(modems_info.items(), key=lambda item: item[1]["timestamp"], reverse=True))

@@ -5,7 +5,7 @@ loaded_model = load('trained_model.joblib')
 
 # Define a function to clean the text
 def clean_text(text):
-    # Implement your text cleaning logic here
+    # This can be custom
     return text
 
 # Define a function to classify a single text
